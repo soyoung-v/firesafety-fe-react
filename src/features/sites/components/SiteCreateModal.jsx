@@ -158,7 +158,7 @@ export default function SiteCreateModal({ visible, onClose, onCreated }) {
               <Input
                 label="현장명"
                 requiredMark
-                placeholder="예: 레이월드1호점"
+                placeholder="예: 대구스마트팩토리1호점"
                 value={form.name}
                 error={errors.name}
                 onChange={(event) => updateField('name', event.target.value)}
