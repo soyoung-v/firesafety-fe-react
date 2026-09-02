@@ -18,6 +18,13 @@ export const VERDICT_LABELS = {
   ARC: '아크 감지',
 }
 
+// riskLevel(종합 위험도) - VERDICT_LABELS(아크 판정)와 별개 의미. UI에서도 혼동하지 않는다(ADR-002, firesafety-ai)
+export const RISK_LEVEL_LABELS = {
+  NORMAL: '정상',
+  WARNING: '주의',
+  DANGER: '위험',
+}
+
 export const DIAGNOSIS_TRIGGER_TYPE_LABELS = {
   AUTO: '자동',
   MANUAL: '수동',

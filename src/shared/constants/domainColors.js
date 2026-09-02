@@ -39,4 +39,7 @@ export const STATUS_BADGE_COLOR = {
   CONFIRMED: 'var(--color-warning)',
   RESOLVED: 'var(--color-success)',
   ARC: 'var(--color-danger)',
+  // riskLevel(종합 위험도) 배지용 - NORMAL은 위 PANEL 계열과 동일 키 공유
+  WARNING: 'var(--color-warning)',
+  DANGER: 'var(--color-danger)',
 }

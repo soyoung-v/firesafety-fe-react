@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getCircuitDiagnosis, triggerCircuitDiagnosis } from '../api/diagnosisApi'
+import { generateDiagnosisExplanation, getCircuitDiagnosis, triggerCircuitDiagnosis } from '../api/diagnosisApi'
 import { extractServerMessage, formatDateTimeCell } from '../utils/facilityFormatters'
-import { DIAGNOSIS_TRIGGER_TYPE_LABELS, VERDICT_LABELS, labelOf } from '@/shared/constants/domainLabels'
+import { DIAGNOSIS_TRIGGER_TYPE_LABELS, RISK_LEVEL_LABELS, VERDICT_LABELS, labelOf } from '@/shared/constants/domainLabels'
 import Button from '@/shared/components/buttons/Button'
 import DataTable from '@/shared/components/data-display/DataTable'
 import Pagination from '@/shared/components/data-display/Pagination'
@@ -31,6 +31,11 @@ export default function CircuitDiagnosisModal({ circuit, visible, onClose }) {
   const [triggerConfirmOpen, setTriggerConfirmOpen] = useState(false)
   const [triggering, setTriggering] = useState(false)
   const [triggerResult, setTriggerResult] = useState(null)
+  // AI 분석(analysisSummary) 상태 - ML 결과(triggerResult)와 별개로 관리한다. ML 결과는 이미
+  // 화면에 표시된 뒤 이어서 설명만 채워지는 상태를 표현할 수 있어야 한다(명세 13절).
+  const [explanationLoading, setExplanationLoading] = useState(false)
+  const [explanationError, setExplanationError] = useState('')
+  const [explanationSummary, setExplanationSummary] = useState('')
 
   const load = useCallback(() => {
     if (!circuit) return
@@ -60,9 +65,14 @@ export default function CircuitDiagnosisModal({ circuit, visible, onClose }) {
 
   // 진단 실행 API 자체는 동기(AI 서버 호출+저장까지 끝난 뒤 응답)라, 트리거 직후 이력을 다시 조회해
   // 새로 생긴 판정이 있으면 그 결과를 바로 보여준다. 샘플 부족 등으로 판정이 안 생겼을 수도 있어 그 경우만 별도 안내한다.
+  // ML 결과가 화면에 반영된 뒤에만(순차) AI 설명을 요청한다 - trigger와 explanation을 병렬로 호출하지 않는다.
   async function handleTrigger() {
+    if (triggering) return // 더블클릭 등으로 같은 진단이 중복 실행되지 않게 방어
     setTriggerConfirmOpen(false)
     setTriggering(true)
+    setExplanationLoading(false)
+    setExplanationError('')
+    setExplanationSummary('')
     const previousLatestId = history[0]?.resultId ?? null
     try {
       await triggerCircuitDiagnosis(circuit.circuitId)
@@ -77,15 +87,29 @@ export default function CircuitDiagnosisModal({ circuit, visible, onClose }) {
         setTriggerResult({
           type: latest.verdict === 'ARC' ? 'danger' : 'success',
           title: `${VERDICT_LABELS[latest.verdict] ?? latest.verdict}(으)로 판정되었습니다.`,
+          // 아크 판정(legacy ARC verdict)과 종합 위험도(riskLevel)는 서로 다른 모델의 별개 출력이라
+          // 화면에서도 각각 다른 행으로 분리해서 보여준다(riskLevel=DANGER를 "아크 발생"으로 표시하지 않음)
           infoRows: [
             { label: '대상 회로', value: `회로 ${circuit.channelNo}` },
+            { label: '아크 판정', value: VERDICT_LABELS[latest.verdict] ?? latest.verdict },
             { label: '신뢰도', value: formatConfidence(latest.confidence) },
+            ...(latest.riskLevel
+              ? [{ label: '종합 위험도', value: labelOf(RISK_LEVEL_LABELS, latest.riskLevel) }]
+              : []),
+            ...(latest.anomaly != null
+              ? [{ label: '이상 패턴', value: latest.anomaly ? '감지됨' : '미감지' }]
+              : []),
+            ...(latest.predictedCurrent != null
+              ? [{ label: '예측 전류', value: `${Number(latest.predictedCurrent).toFixed(1)} A` }]
+              : []),
             { label: '샘플 수', value: latest.nSamples ?? '-' },
             { label: '진단 방식', value: formatTriggerType(latest.triggerType) },
             ...(latest.warning ? [{ label: '경고', value: latest.warning }] : []),
             { label: '판정 시각', value: formatDateTimeCell(latest.diagnosedAt) },
           ],
+          showExplanation: true,
         })
+        requestExplanation(latest)
       } else {
         setTriggerResult({
           type: 'warning',
@@ -104,6 +128,26 @@ export default function CircuitDiagnosisModal({ circuit, visible, onClose }) {
       })
     } finally {
       setTriggering(false)
+    }
+  }
+
+  // 이미 analysisSummary가 저장되어 있으면(캐시 hit) 그대로 쓰고 API를 호출하지 않는다.
+  // 실패해도 이미 표시된 ML 결과에는 영향을 주지 않고, AI 분석 영역에서만 실패 상태를 보여준다.
+  // 자동 재시도는 하지 않는다.
+  async function requestExplanation(latest) {
+    const cached = latest.analysisSummary?.trim()
+    if (cached) {
+      setExplanationSummary(cached)
+      return
+    }
+    setExplanationLoading(true)
+    try {
+      const result = await generateDiagnosisExplanation(circuit.circuitId, latest.resultId)
+      setExplanationSummary(result?.analysisSummary ?? '')
+    } catch (error) {
+      setExplanationError(extractServerMessage(error, 'AI 분석 설명을 불러오지 못했습니다.'))
+    } finally {
+      setExplanationLoading(false)
     }
   }
 
@@ -209,9 +253,28 @@ export default function CircuitDiagnosisModal({ circuit, visible, onClose }) {
         infoRows={triggerResult?.infoRows ?? []}
         onClose={() => {
           setTriggerResult(null)
+          setExplanationLoading(false)
+          setExplanationError('')
+          setExplanationSummary('')
           load()
         }}
-      />
+      >
+        {triggerResult?.showExplanation && (
+          <div className="ai-analysis">
+            <p className="ai-analysis__title">AI 분석</p>
+            {explanationLoading && (
+              <div className="ai-analysis__loading" role="status">
+                <span className="spinner" aria-hidden="true" />
+                <span>AI 분석 설명을 생성하는 중입니다...</span>
+              </div>
+            )}
+            {!explanationLoading && explanationError && <p className="ai-analysis__error">{explanationError}</p>}
+            {!explanationLoading && !explanationError && explanationSummary && (
+              <p className="ai-analysis__summary">{explanationSummary}</p>
+            )}
+          </div>
+        )}
+      </ActionResultModal>
     </>
   )
 }

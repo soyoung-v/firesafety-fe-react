@@ -19,6 +19,7 @@ export default function ActionResultModal({
   infoRows = [],
   confirmText = '확인',
   onClose,
+  children,
 }) {
   const icon = ICON_BY_TYPE[type] ?? ICON_BY_TYPE.success
 
@@ -53,6 +54,8 @@ export default function ActionResultModal({
             ))}
           </div>
         )}
+
+        {children}
       </div>
     </BaseModal>
   )
