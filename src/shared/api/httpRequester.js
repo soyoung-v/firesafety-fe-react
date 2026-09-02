@@ -94,6 +94,12 @@ httpRequester.interceptors.response.use(
       })
     }
 
+    // 호출부가 자체적으로 실패를 처리하겠다고 명시한 요청(예: AI 설명 생성 - 실패해도 이미 표시된
+    // 다른 결과에 영향을 주면 안 되는 보조 기능)은 전역 알림을 띄우지 않는다.
+    if (config?.suppressGlobalAlert) {
+      return Promise.reject(error)
+    }
+
     // 그 외 실패 → 서버 메시지 전역 알림
     showAlert(extractErrorMessage(error))
     return Promise.reject(error)
