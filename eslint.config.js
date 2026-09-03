@@ -27,4 +27,13 @@ export default defineConfig([
       globals: globals.node,
     },
   },
+  {
+    // Vite 번들 대상이 아니라 브라우저가 Service Worker로 직접 로드하는 raw 파일 →
+    // importScripts로 불러온 firebase-app/messaging-compat이 전역에 firebase를 붙인다
+    files: ['public/firebase-messaging-sw.js'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      globals: { ...globals.serviceworker, firebase: 'readonly' },
+    },
+  },
 ])

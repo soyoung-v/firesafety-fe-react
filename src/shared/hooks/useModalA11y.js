@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
@@ -11,7 +11,11 @@ export function useModalA11y({ visible, onClose }) {
   // effect 의존성에 그대로 넣으면 모달 내부 상태가 바뀔 때마다(예: 입력창 타이핑) 이 effect가 재실행되어
   // "열리자마자 첫 포커스 요소로 이동"이 반복 발동, 타이핑 중인 입력에서 포커스를 계속 뺏어감
   const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
+  // 렌더 중 ref를 직접 쓰지 않고, paint 전(useLayoutEffect)에 최신값으로 갱신한다 —
+  // 아래 focus trap effect의 의존성 배열에는 onClose를 넣지 않는다(넣으면 타이핑마다 재실행돼 포커스를 뺏음)
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   useEffect(() => {
     if (!visible) return undefined // 비표시 상태면 리스너 등록 불필요
