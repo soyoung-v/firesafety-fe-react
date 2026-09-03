@@ -30,7 +30,17 @@ jobs:
       - run: npm ci
       # 기존 pre-existing lint 24건(11 errors, 13 warnings)은 이번 Phase에서 배포 blocker로
       # 만들지 않는다 - build 성공만 필수 조건으로 둔다(Phase 13/14 방침).
+      # npm run build는 prebuild(scripts/generate-firebase-sw.mjs)를 자동으로 먼저 실행해
+      # public/firebase-messaging-sw.js를 생성한다 - 아래 docker build-args와 동일한 값을 써야
+      # 이 sanity 빌드가 실제 배포 빌드와 같은 경로로 검증된다(값 누락 시 여기서 먼저 실패한다).
       - run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
 
       - id: meta
         run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"

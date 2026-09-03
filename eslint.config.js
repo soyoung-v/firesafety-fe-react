@@ -5,7 +5,8 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // template은 실행되는 JS가 아니라 generate-firebase-sw.mjs가 문자열 치환할 텍스트라 lint 대상 아님
+  globalIgnores(['dist', 'public/firebase-messaging-sw.template.js']),
   {
     files: ['**/*.{js,jsx}'],
     ignores: ['vite.config.js'],
