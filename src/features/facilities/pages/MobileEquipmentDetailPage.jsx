@@ -145,14 +145,43 @@ export default function MobileEquipmentDetailPage() {
     }
   }, [loadAlerts])
 
-  // 딥링크로 들어온 alertId가 있으면 그 알림, 없으면 처리 안 된(RESOLVED가 아닌) 가장 최근 알림을 상단에 띄운다
-  const topAlert = useMemo(() => {
-    if (focusAlertId) {
-      const matched = alerts.find((alert) => String(alert.alertId) === focusAlertId)
-      if (matched) return matched
+  // focusAlertId가 있으면 그 경보가 처리 대상의 SSOT다 - "최근 N건" 목록(alerts, RECENT_ALERT_SIZE)에
+  // 없다고 해서 다른 경보로 조용히 대체하면 안 된다(MOBILE-P1: 목록에서 클릭한 항목과 실제 조치 대상이
+  // 달라지던 버그). alertId 단건 필터(API-301, GET /alerts?alertId=)로 정확히 그 경보만 재조회한다.
+  const [focusedAlert, setFocusedAlert] = useState(null)
+  const [focusedAlertStatus, setFocusedAlertStatus] = useState('idle') // idle | loading | found | not-found | error
+
+  useEffect(() => {
+    if (!focusAlertId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFocusedAlert(null)
+      setFocusedAlertStatus('idle')
+      return undefined
     }
+    let cancelled = false
+    setFocusedAlertStatus('loading')
+    getAlerts({ alertId: focusAlertId })
+      .then((data) => {
+        if (cancelled) return
+        const found = (Array.isArray(data?.content) ? data.content : [])[0] ?? null
+        setFocusedAlert(found)
+        setFocusedAlertStatus(found ? 'found' : 'not-found')
+      })
+      .catch(() => {
+        if (cancelled) return
+        setFocusedAlert(null)
+        setFocusedAlertStatus('error')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [focusAlertId])
+
+  // focusAlertId가 없을 때만(목록에서 특정 항목을 지목하지 않고 들어온 경우) 처리 안 된 가장 최근 알림을 대신 보여준다
+  const topAlert = useMemo(() => {
+    if (focusAlertId) return focusedAlert
     return alerts.find((alert) => alert.status !== 'RESOLVED') ?? null
-  }, [alerts, focusAlertId])
+  }, [alerts, focusAlertId, focusedAlert])
 
   function openAction(alert) {
     if (alert.status === 'RESOLVED') {
@@ -219,7 +248,25 @@ export default function MobileEquipmentDetailPage() {
       </div>
 
       {/* 이 설비의 처리 필요한 경보를 바로 확인/조치완료 — 눌러도 페이지 이동 없이 하단 시트만 뜬다 */}
-      {topAlert && (
+      {focusAlertId && focusedAlertStatus === 'not-found' && (
+        <div className="mobile-equipment-action-banner mobile-equipment-action-banner--notice">
+          <span>선택한 경보를 찾을 수 없습니다. 삭제되었거나 조회 권한이 없는 경보일 수 있습니다.</span>
+        </div>
+      )}
+      {focusAlertId && focusedAlertStatus === 'error' && (
+        <div className="mobile-equipment-action-banner mobile-equipment-action-banner--notice">
+          <span>경보 정보를 불러오지 못했습니다.</span>
+        </div>
+      )}
+      {topAlert && topAlert.status === 'RESOLVED' && (
+        <div className="mobile-equipment-action-banner mobile-equipment-action-banner--notice">
+          <span className="mobile-equipment-action-banner__info">
+            <StatusBadge status={topAlert.severity} label={formatAlertSeverity(topAlert.severity)} color={ALERT_SEVERITY_COLOR[topAlert.severity]} />
+            <strong>{formatAlertType(topAlert.type)} 경보 — 이미 조치완료됨</strong>
+          </span>
+        </div>
+      )}
+      {topAlert && topAlert.status !== 'RESOLVED' && (
         <div className="mobile-equipment-action-banner">
           <span className="mobile-equipment-action-banner__info">
             <StatusBadge
