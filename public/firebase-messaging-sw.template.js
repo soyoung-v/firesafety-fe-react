@@ -19,9 +19,12 @@ firebase.initializeApp({
 const messaging = firebase.messaging()
 
 // 앱이 백그라운드(탭 비활성/닫힘)일 때 수신되는 알림 — 포그라운드는 onMessage로 별도 처리 필요(다음 단계)
+// Backend(FcmPushService)는 title/body를 notification이 아니라 data 필드로 보낸다(alertId/panelId 등과
+// 함께 data-only 메시지) - data를 우선 읽고, notification 필드로 오는 경우도 대비해 fallback으로 둔다.
 messaging.onBackgroundMessage((payload) => {
-  const { title, body } = payload.notification ?? {}
-  self.registration.showNotification(title ?? 'ArcGuard', {
+  const title = payload.data?.title ?? payload.notification?.title ?? 'ArcGuard'
+  const body = payload.data?.body ?? payload.notification?.body ?? '새로운 경보가 발생했습니다.'
+  self.registration.showNotification(title, {
     body,
     icon: '/ArcGuard.png',
   })
