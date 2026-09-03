@@ -1,0 +1,90 @@
+name: frontend deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-frontend-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/arcguard-frontend
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: npm ci
+      # 기존 pre-existing lint 24건(11 errors, 13 warnings)은 이번 Phase에서 배포 blocker로
+      # 만들지 않는다 - build 성공만 필수 조건으로 둔다(Phase 13/14 방침).
+      - run: npm run build
+
+      - id: meta
+        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.IMAGE_NAME }}:latest
+          # Firebase 클라이언트 웹 설정(공개 식별자, 서버 secret 아님) - repo Variables로 전달한다.
+          # Settings > Secrets and variables > Actions > Variables 탭에 아래 7개를 등록해야 한다.
+          build-args: |
+            VITE_FIREBASE_API_KEY=${{ vars.VITE_FIREBASE_API_KEY }}
+            VITE_FIREBASE_AUTH_DOMAIN=${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+            VITE_FIREBASE_PROJECT_ID=${{ vars.VITE_FIREBASE_PROJECT_ID }}
+            VITE_FIREBASE_STORAGE_BUCKET=${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+            VITE_FIREBASE_MESSAGING_SENDER_ID=${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+            VITE_FIREBASE_APP_ID=${{ vars.VITE_FIREBASE_APP_ID }}
+            VITE_FIREBASE_VAPID_KEY=${{ vars.VITE_FIREBASE_VAPID_KEY }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2 (pull + restart frontend only)
+        # EC2 SSH 개인키를 다루는 third-party action이라 major tag가 아니라 커밋 SHA로 고정한다
+        # (v1.2.5, https://github.com/appleboy/ssh-action/releases/tag/v1.2.5)
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd ~/arcguard
+            export IMAGE_TAG=${{ needs.build.outputs.image_tag }}
+            docker compose --env-file .env.production pull frontend
+            docker compose --env-file .env.production up -d --no-deps frontend
+            # nginx는 frontend/backend를 정적 upstream hostname으로 proxy_pass하는데, 이 hostname을
+            # 설정 로드 시점에 한 번 resolve하고 실패하면 기동 자체를 거부한다(restart: unless-stopped라
+            # 계속 재시도는 하지만). nginx 이미지 자체는 GHCR에 없는 공개 nginx:1.27-alpine이라 다른
+            # repo가 배포할 수 없으므로, frontend가 뜬 뒤(위 두 줄) 이 저장소가 함께 기동/재기동한다.
+            # 이미 떠 있으면 설정 변경이 없는 한 그대로 유지되고, 최초 부트스트랩(frontend가 방금
+            # 처음 뜬 상황)에서는 여기서 처음 생성된다.
+            docker compose --env-file .env.production up -d --no-deps nginx
+            ./deploy/scripts/health-check.sh frontend

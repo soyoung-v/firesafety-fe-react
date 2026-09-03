@@ -23,6 +23,7 @@ docs
 .env.*
 !.env.example
 !.env.mock
+!.env.production.example
 
 public/firebase-messaging-sw.js
 
