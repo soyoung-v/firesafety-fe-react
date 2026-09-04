@@ -25,15 +25,10 @@ PC/모바일은 뷰포트가 아니라 URL 프리픽스(`/m/*`)로 나뉘며, �
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    Browser["Browser / PWA"] -- HTTPS --> Nginx --> SPA["React (정적 파일)"]
-    Nginx --> BE["Spring Boot"]
-    BE --> AI["FastAPI"]
-    Browser <-. 푸시 .-> FCM
-```
+![Architecture](images/architecture-web.png)
 
-이 컨테이너 내부 nginx는 React 정적 파일 서빙과 SPA 라우팅 폴백만 담당합니다. HTTPS 종료와 `/api`·`/ws` 외부 라우팅은 ArcGuard 배포 구성의 edge nginx(`firesafety-be` 저장소)가 맡습니다.
+이 컨테이너 내부 nginx는 React 정적 파일 서빙과 SPA 라우팅 폴백만 담당합니다. 
+HTTPS 종료와 `/api`·`/ws` 외부 라우팅은 ArcGuard 배포 구성의 edge nginx(`firesafety-be` 저장소)가 맡습니다.
 
 ---
 
