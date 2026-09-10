@@ -16,7 +16,7 @@ import {
   YAxis,
 } from 'recharts'
 import { getStatistics } from '../api/statisticsApi'
-import { countOf, percentOf, sumCounts } from '../utils/statisticsFormatters'
+import { countOf, percentOf, percentOneDecimal, sumCounts } from '../utils/statisticsFormatters'
 import { useSite } from '@/features/sites/useSite'
 import BaseCard from '@/shared/components/data-display/BaseCard'
 import EmptyState from '@/shared/components/feedback/EmptyState'
@@ -32,6 +32,22 @@ import './StatisticsPage.css'
 // 통계 화면 숫자 표기 통일
 function formatNumber(value) {
   return Number(value ?? 0).toLocaleString('ko-KR')
+}
+
+// 소수점 1자리 비율 텍스트(항상 1자리 - 100 -> "100.0", 0 -> "0.0")
+function formatRate(rate) {
+  return rate.toFixed(1)
+}
+
+// AI 진단 현황 progress bar fill 스타일 - width는 실제 비율값을 그대로 쓰되(데이터 왜곡 금지),
+// 발생 건수가 있는데 비율이 너무 작아(예: 0.1%) 막대가 안 보이는 것만 시각적으로 보정한다.
+// 텍스트 표시값(formatRate)은 이 보정과 무관하게 항상 실제 비율 그대로 나간다.
+function diagnosisBarFillStyle(rate, count, color) {
+  return {
+    width: `${rate}%`,
+    minWidth: count > 0 && rate > 0 ? '3px' : undefined,
+    background: color,
+  }
 }
 
 // 예방조치 이행률 목표선 
@@ -93,9 +109,14 @@ export default function StatisticsPage() {
     () => percentOf(countOf(alerts?.statusCounts, 'RESOLVED'), alerts?.totalCount),
     [alerts],
   )
-  const arcRate = useMemo(() => percentOf(arcDiagnosisCount, diagnoses?.totalCount), [arcDiagnosisCount, diagnoses])
+  // 정상/아크 감지 비율은 소수점 1자리로 표시한다 - 정수 반올림(percentOf)을 쓰면 예:
+  // 2117/2119건처럼 발생 건수가 있는데도 0%로 보여 사용자에게 잘못된 인상을 줄 수 있다.
+  const arcRate = useMemo(
+    () => percentOneDecimal(arcDiagnosisCount, diagnoses?.totalCount),
+    [arcDiagnosisCount, diagnoses],
+  )
   const normalDiagnosisRate = useMemo(
-    () => percentOf(normalDiagnosisCount, diagnoses?.totalCount),
+    () => percentOneDecimal(normalDiagnosisCount, diagnoses?.totalCount),
     [normalDiagnosisCount, diagnoses],
   )
   const diagnosisCoverageRate = useMemo(
@@ -329,10 +350,10 @@ export default function StatisticsPage() {
                 <div className="statistics-diagnosis-box__bar">
                   <div
                     className="statistics-diagnosis-box__bar-fill"
-                    style={{ width: `${normalDiagnosisRate}%`, background: STATUS_BADGE_COLOR.NORMAL }}
+                    style={diagnosisBarFillStyle(normalDiagnosisRate, normalDiagnosisCount, STATUS_BADGE_COLOR.NORMAL)}
                   />
                 </div>
-                <span className="statistics-diagnosis-box__percent">비율 {normalDiagnosisRate}%</span>
+                <span className="statistics-diagnosis-box__percent">비율 {formatRate(normalDiagnosisRate)}%</span>
               </div>
 
               <div className="statistics-diagnosis-box">
@@ -344,10 +365,10 @@ export default function StatisticsPage() {
                 <div className="statistics-diagnosis-box__bar">
                   <div
                     className="statistics-diagnosis-box__bar-fill"
-                    style={{ width: `${arcRate}%`, background: STATUS_BADGE_COLOR.ARC }}
+                    style={diagnosisBarFillStyle(arcRate, arcDiagnosisCount, STATUS_BADGE_COLOR.ARC)}
                   />
                 </div>
-                <span className="statistics-diagnosis-box__percent">비율 {arcRate}%</span>
+                <span className="statistics-diagnosis-box__percent">비율 {formatRate(arcRate)}%</span>
               </div>
             </div>
           </div>
