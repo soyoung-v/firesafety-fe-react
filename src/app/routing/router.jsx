@@ -13,7 +13,7 @@ import RoleRoute from './RoleRoute'
 import SiteRoute from './SiteRoute'
 import { routeConfig } from './routeConfig'
 
-const DesignSystemPage = lazy(() => import('@/dev/DesignSystemPage')) // 개발 전용, 아래 조건부 라우트에서만 로드
+const DesignSystemPage = lazy(() => import('@/dev/DesignSystemPage'))
 
 const LAYOUTS = {
   auth: AuthLayout,
@@ -69,17 +69,14 @@ export default function AppRouter() {
         )
       })}
 
-      {/* 개발 전용 디자인 시스템 — production 빌드 시 조건 false → 라우트 자체 미등록 */}
-      {import.meta.env.DEV && (
-        <Route
-          path="/dev/design-system"
-          element={
-            <Suspense fallback={<LoadingState />}>
-              <DesignSystemPage />
-            </Suspense>
-          }
-        />
-      )}
+      <Route
+        path="/design-system"
+        element={
+          <Suspense fallback={<LoadingState />}>
+            <DesignSystemPage />
+          </Suspense>
+        }
+      />
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

@@ -34,7 +34,7 @@ const SAMPLE_ROWS = [
   { id: 2, name: '2현장 분전반 B', status: 'RISK' },
 ]
 
-// 개발 전용 컴포넌트 카탈로그, production 빌드엔 라우트 자체가 없음(app/router.jsx)
+// 배포에서도 확인 가능한 공통 컴포넌트 카탈로그
 export default function DesignSystemPage() {
   const [page, setPage] = useState(1)
   const [baseModalOpen, setBaseModalOpen] = useState(false)
@@ -43,7 +43,7 @@ export default function DesignSystemPage() {
 
   return (
     <div className="u-flex-col u-gap-16" style={{ padding: 'var(--space-24)', maxWidth: 960 }}>
-      <PageHeader title="디자인 시스템" subtitle="/dev/design-system — 개발 전용" />
+      <PageHeader title="디자인 시스템" subtitle="/design-system — 컴포넌트 데모" />
 
       <BaseCard header={<h2>색상 토큰</h2>}>
         <div className="u-flex u-gap-16" style={{ flexWrap: 'wrap' }}>
@@ -121,7 +121,7 @@ export default function DesignSystemPage() {
 
       {/* 필터바 → 목록 → 페이지네이션을 한 세트로 묶는 기본 패턴 — 실제 화면(직원관리 등)도 이 구성을 그대로 따른다 */}
       <BaseCard header={<h2>FilterBar / DataTable</h2>}>
-        <TabBar tabs={[{ label: '탭 A', to: '/dev/design-system', end: true }, { label: '탭 B', to: '/login' }]} />
+        <TabBar tabs={[{ label: '탭 A', to: '/design-system', end: true }, { label: '탭 B', to: '/login' }]} />
         <FilterBar
           onReset={() => {}}
           actions={

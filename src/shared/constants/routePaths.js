@@ -40,8 +40,8 @@ export const ROUTE_PATHS = {
   mobileInspection: '/m/inspections',
   mobileAccountsContacts: '/m/accounts',
 
-  // 개발 전용
-  devDesignSystem: '/dev/design-system',
+  // 디자인 시스템
+  designSystem: '/design-system',
 }
 
 // 경로 패턴의 :key를 실제 값으로 치환 (예: '/equipment/:panelId' → '/equipment/5')
